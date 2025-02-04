@@ -3,7 +3,7 @@
 ## Overview 
 This directory contains scripts used for bivalve mitochondrial genome assembly and annotation in the lucinid micochodrial genomes project.
 The goal of this project was to maximise the output of gill metagenome data by extracting host reads for mitochondrial genome assembly. This supports the molecular classification of host taxonomy and the study of bivalve mitochondrial biology.
-The code was written in BASH to assembly and annotate the lucinid michondrial genomes from Illumina metagenomic reads.
+The code was written in BASH to assemble and annotate the lucinid michondrial genomes from Illumina metagenomic reads.
 
 
 ## Files and Functions

@@ -1,4 +1,4 @@
-# Lucinid Mitochondrial Genomes
+# Lucinid Symbiont Genome Recovery
 
 ## Overview 
 This directory contains scripts used to recover and classify lucinid bacterial symbiont MAGs for various lucinid symbiosis projects.
