@@ -10,9 +10,9 @@ The code was written in BASH for Illumina metagenome reads.
 
 | Filename                                      | Description |
 |-----------------------------------------------|------------|
-| `01_filter_reads.sh`                          | Filters raw sequencing reads for quality control. |
+| `01_filter_reads.sh`                          | Filters and trims raw sequencing reads. |
 | `02_metagenomics_spades.sh`                   | Assembles metagenomic reads using SPAdes. |
-| `03_metagenomics_binning.sh`                  | Performs metagenomic binning to group contigs into genomes. |
+| `03_metagenomics_binning.sh`                  | Performs metagenomic binning using three different binner to group contigs into genomes. |
 | `04_metagenomics_gtdb_classification.sh`      | Classifies metagenomic bins using GTDB. |
 | `05_metagenomics_checkm2.sh`                  | Assesses bin quality using CheckM2. |
 | `06_metagenomics_DRAM_function_annotation.sh` | Annotates metabolic functions using DRAM. |
