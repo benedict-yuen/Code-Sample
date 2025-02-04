@@ -32,9 +32,11 @@ The code was written in BASH to assembly and annotate the lucinid michondrial ge
 
 ### Running the Scripts
 
-sbatch 01_filter_reads.sh readFile1.gz readFile2.gz
-sbatch 02_mitogenomics_mitoz.sh CombinedReadsFile.gz
-sbatch 02_mitogenomics_novoplasty.sh CombinedReadsFile.gz Seed.fasta
+`sbatch 01_filter_reads.sh readFile1.gz readFile2.gz`
+
+`sbatch 02_mitogenomics_mitoz.sh CombinedReadsFile.gz`
+
+`sbatch 02_mitogenomics_novoplasty.sh CombinedReadsFile.gz Seed.fasta`
 
 ## Notes & Limitations
 These scripts were designed for lucinid gill metagenome Illumina reads and for use on the GWDG HPC, and will need modifications for other data and HPCs
