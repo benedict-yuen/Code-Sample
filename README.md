@@ -7,7 +7,7 @@ Each workflow has its own README with detailed instructions. Click on the links 
 
 - **[Method 1: Symbiont Metagenomes](metagenomics/README.md)** – Symbiont MAG recovery workflow including assembly, binning, classification, QC, phylogenomic analysis  
 - **[Method 2: Lucinid Mitochondrial Genomes](mitochondrial_genomics/README.md)** – Host mitochondrial genome recovery and functional annotation
-- **[Method 3: Symbiont Genome Recombination]()** – Symbiont MAG alignment, core gene extraction, recombination analysis 
+- **[Method 3: Symbiont Genome Recombination](genome_recombination_analysis/README.md)** – Symbiont MAG alignment, core gene extraction, recombination analysis 
 
 
 ## Contact
