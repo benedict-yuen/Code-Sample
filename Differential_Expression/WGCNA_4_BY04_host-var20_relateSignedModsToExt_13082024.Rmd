@@ -1,0 +1,519 @@
+---
+title: "WGCNA_4_BY04_host-var20_relateSignedModsToExt_13082024"
+author: "BY"
+date: "2024-08-13
+"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+setup work space and load data from previous step
+```{r}
+#=====================================================================================
+#
+#  Code chunk 1
+#
+#=====================================================================================
+
+# Load the WGCNA package
+library(WGCNA)
+# The following setting is important, do not omit.
+options(stringsAsFactors = FALSE);
+# Load the expression and trait data saved in the first part
+lnames = load(file = "WGCNA_2_BY04-host-var20-dataInput_13082024.RData");
+#The variable lnames contains the names of loaded variables.
+lnames
+# Load network data saved in the second part.
+lnames = load(file = "WGCNA_3_BY04_host-var20_SignedNetworkConstr_summary_13082024.RData");
+lnames
+
+```
+
+
+Do module and trait correlation analysis
+```{r}
+#=====================================================================================
+#
+#  Code chunk 2
+#
+#=====================================================================================
+#correlate eigengenes with external traits and look for the most significant associations
+
+# Define numbers of genes and samples
+nGenes = ncol(datExpr);
+nSamples = nrow(datExpr);
+# Recalculate MEs with color labels
+MEs0 = moduleEigengenes(datExpr, moduleColors)$eigengenes
+MEs = orderMEs(MEs0, greyLast= FALSE)
+table(moduleColors)
+
+#remove grey module because it contains genes that have not been clustered in any module
+MEs = removeGreyME(MEs, greyMEName = paste(moduleColor.getMEprefix(), "grey", sep=""))
+
+datTraits1 <- datTraits[,3:9] #keep only the Condition traits
+datTraits2 <- datTraits1[c(1,2,4,3,5,6,7)] #re-order the traits
+
+moduleTraitCor = cor(MEs, datTraits2, use = "p");
+moduleTraitPvalue = corPvalueStudent(moduleTraitCor, nSamples);
+```
+
+```{r}
+# Build a tree of the MEs - This should match order of MEs in heatmap as long as greyLast is FALSE
+MEDiss = 1-cor(MEs);
+METree = hclust(as.dist(MEDiss), method = "average");
+sizeGrWindow(7, 6)
+plot(METree, main = "Clustering of module eigengenes", xlab = "", sub = "")
+
+
+pdf(file = "WGCNA_4_BY04_host-var20_relateSignedModsToExt_13082024_moduleclustering.pdf", width = 10, height = 8)
+plot(METree, main = "Clustering of module eigengenes", xlab = "", sub = "")
+
+dev.off()
+
+```
+
+
+#Heatmap for graphical visualisation of traits and associated correlation values
+```{r}
+#=====================================================================================
+#
+#  Code chunk 3
+#
+#=====================================================================================
+
+#Graphical visualisation of traits and associated correlation values
+
+sizeGrWindow(12,8)
+# Will display correlations and their p-values
+textMatrix =  paste(signif(moduleTraitCor, 2), "\n(",
+                    signif(moduleTraitPvalue, 1), ")", sep = "");
+dim(textMatrix) = dim(moduleTraitCor)
+par(mar = c(6, 8.5, 4, 6));
+```
+
+```{r}
+# Display the correlation values within a heatmap plot
+
+library("RColorBrewer")
+hmcol<- colorRampPalette(c("#79b6c9", "white", "#e27a37"))(100)
+par(mar = c(6, 8, 6, 6));
+labeledHeatmap(Matrix = moduleTraitCor,
+               xLabels = names(datTraits2),
+               yLabels = names(MEs),
+               ySymbols = names(MEs),
+               colorLabels = FALSE,
+               colors = hmcol,
+               textMatrix = textMatrix,
+               setStdMargins = FALSE,
+               cex.text = 0.5,
+               zlim = c(-1,1),
+               main = paste("Host Module-trait relationships"))
+
+pdf(file = "WGCNA_4_BY04_host-var20_relateSignedModsToExt_13082024_module_trait_rs.pdf", width = 8, height = 8)
+par(mar = c(6, 8, 6, 6));
+labeledHeatmap(Matrix = moduleTraitCor,
+               xLabels = names(datTraits2),
+               yLabels = names(MEs),
+               ySymbols = names(MEs),
+               colorLabels = FALSE,
+               colors = hmcol,
+               textMatrix = textMatrix,
+               setStdMargins = FALSE,
+               cex.text = 0.5,
+               zlim = c(-1,1),
+               main = paste("Host Module-trait relationships"))
+dev.off()
+
+```
+
+```{r}
+####Another way to plot MEs in a heatmap####
+
+library(pheatmap)
+
+pheatmap(as.matrix(moduleTraitCor), col=hmcol, cluster_cols=FALSE, cluster_rows=T, show_rownames=T, clustering_method = "median", border_color=FALSE, scale = "none", display_numbers = TRUE)
+
+```
+
+
+Quantify associations of individual genes with a trait of interest (Condition) by defining Gene Significance - must be done individually for each condition of interest
+```{r}
+#=====================================================================================
+#
+#  Code chunk 4.1 - ConditionSW
+#
+#=====================================================================================
+#Gene relationship to trait and important modules. 
+#This has to be done separately for each trait of interest
+#quantify associations of individual genes with our trait of interest (Condition) by defining Gene Significance
+
+
+# Define variable Condition containing the Condition column of datTrait
+ConditionSW = as.data.frame(datTraits$Condition.S.vs.W);
+names(ConditionSW) = "ConditionSW"
+# names (colors) of the modules
+modNames = substring(names(MEs), 3)
+
+geneModuleMembership = as.data.frame(cor(datExpr, MEs, use = "p"));
+MMPvalue = as.data.frame(corPvalueStudent(as.matrix(geneModuleMembership), nSamples));
+
+names(geneModuleMembership) = paste("MM", modNames, sep="");
+names(MMPvalue) = paste("p.MM", modNames, sep="");
+
+geneTraitSignificanceSW = as.data.frame(cor(datExpr, ConditionSW, use = "p"));
+GSPvalueSW = as.data.frame(corPvalueStudent(as.matrix(geneTraitSignificanceSW), nSamples));
+
+names(geneTraitSignificanceSW) = paste("GS.", names(ConditionSW), sep="");
+names(GSPvalueSW) = paste("p.GS.", names(ConditionSW), sep="");
+
+```
+
+```{r}
+#=====================================================================================
+#
+#  Code chunk 4.2 - ConditionFW
+#
+#=====================================================================================
+#Gene relationship to trait and important modules. 
+#This has to be done separately for each trait of interest
+#quantify associations of individual genes with our trait of interest (Condition) by defining Gene Significance
+
+
+# Define variable Condition containing the Condition column of datTrait
+ConditionFW = as.data.frame(datTraits$Condition.F.vs.W);
+names(ConditionFW) = "ConditionFW"
+# names (colors) of the modules
+modNames = substring(names(MEs), 3)
+
+geneModuleMembership = as.data.frame(cor(datExpr, MEs, use = "p"));
+MMPvalue = as.data.frame(corPvalueStudent(as.matrix(geneModuleMembership), nSamples));
+
+names(geneModuleMembership) = paste("MM", modNames, sep="");
+names(MMPvalue) = paste("p.MM", modNames, sep="");
+
+geneTraitSignificanceFW = as.data.frame(cor(datExpr, ConditionFW, use = "p"));
+GSPvalueFW = as.data.frame(corPvalueStudent(as.matrix(geneTraitSignificanceFW), nSamples));
+
+names(geneTraitSignificanceFW) = paste("GS.", names(ConditionFW), sep="");
+names(GSPvalueFW) = paste("p.GS.", names(ConditionFW), sep="");
+```
+
+```{r}
+#=====================================================================================
+#
+#  Code chunk 4.3 - WvAll
+#
+#=====================================================================================
+#Gene relationship to trait and important modules. 
+#This has to be done separately for each trait of interest
+#quantify associations of individual genes with our trait of interest (Condition) by defining Gene Significance
+
+# Define variable Condition containing the Condition column of datTrait
+ConditionWvAll = as.data.frame(datTraits$Condition.W.vs.all);
+names(ConditionWvAll) = "ConditionWvAll"
+# names (colors) of the modules
+modNames = substring(names(MEs), 3)
+
+geneModuleMembership = as.data.frame(cor(datExpr, MEs, use = "p"));
+MMPvalue = as.data.frame(corPvalueStudent(as.matrix(geneModuleMembership), nSamples));
+
+names(geneModuleMembership) = paste("MM", modNames, sep="");
+names(MMPvalue) = paste("p.MM", modNames, sep="");
+
+geneTraitSignificanceWvAll = as.data.frame(cor(datExpr, ConditionWvAll, use = "p"));
+GSPvalueWvAll = as.data.frame(corPvalueStudent(as.matrix(geneTraitSignificanceWvAll), nSamples));
+
+names(geneTraitSignificanceWvAll) = paste("GS.", names(ConditionWvAll), sep="");
+names(GSPvalueWvAll) = paste("p.GS.", names(ConditionWvAll), sep="");
+```
+
+```{r}
+#=====================================================================================
+#
+#  Code chunk 4.4 - FvAll
+#
+#=====================================================================================
+#Gene relationship to trait and important modules. 
+#This has to be done separately for each trait of interest
+#quantify associations of individual genes with our trait of interest (Condition) by defining Gene Significance
+
+# Define variable Condition containing the Condition column of datTrait
+ConditionFvAll = as.data.frame(datTraits$Condition.F.vs.all);
+names(ConditionFvAll) = "ConditionFvAll"
+# names (colors) of the modules
+modNames = substring(names(MEs), 3)
+
+geneModuleMembership = as.data.frame(cor(datExpr, MEs, use = "p"));
+MMPvalue = as.data.frame(corPvalueStudent(as.matrix(geneModuleMembership), nSamples));
+
+names(geneModuleMembership) = paste("MM", modNames, sep="");
+names(MMPvalue) = paste("p.MM", modNames, sep="");
+
+geneTraitSignificanceFvAll = as.data.frame(cor(datExpr, ConditionFvAll, use = "p"));
+GSPvalueFvAll = as.data.frame(corPvalueStudent(as.matrix(geneTraitSignificanceFvAll), nSamples));
+
+names(geneTraitSignificanceFvAll) = paste("GS.", names(ConditionFvAll), sep="");
+names(GSPvalueFvAll) = paste("p.GS.", names(ConditionFvAll), sep="");
+```
+
+```{r}
+#=====================================================================================
+#
+#  Code chunk 4.5 - SvAll
+#
+#=====================================================================================
+#Gene relationship to trait and important modules. 
+#This has to be done separately for each trait of interest
+#quantify associations of individual genes with our trait of interest (Condition) by defining Gene Significance
+
+# Define variable Condition containing the Condition column of datTrait
+ConditionSvAll = as.data.frame(datTraits$Condition.S.vs.all);
+names(ConditionSvAll) = "ConditionSvAll"
+# names (colors) of the modules
+modNames = substring(names(MEs), 3)
+
+geneModuleMembership = as.data.frame(cor(datExpr, MEs, use = "p"));
+MMPvalue = as.data.frame(corPvalueStudent(as.matrix(geneModuleMembership), nSamples));
+
+names(geneModuleMembership) = paste("MM", modNames, sep="");
+names(MMPvalue) = paste("p.MM", modNames, sep="");
+
+geneTraitSignificanceSvAll = as.data.frame(cor(datExpr, ConditionSvAll, use = "p"));
+GSPvalueSvAll = as.data.frame(corPvalueStudent(as.matrix(geneTraitSignificanceSvAll), nSamples));
+
+names(geneTraitSignificanceSvAll) = paste("GS.", names(ConditionSvAll), sep="");
+names(GSPvalueSvAll) = paste("p.GS.", names(ConditionSvAll), sep="");
+
+```
+
+```{r}
+#=====================================================================================
+#
+#  Code chunk 4.6 - SoxB
+#
+#=====================================================================================
+#Gene relationship to trait and important modules. 
+#This has to be done separately for each trait of interest
+#quantify associations of individual genes with our trait of interest (Condition) by defining Gene Significance
+
+
+# Define variable Condition containing the Condition column of datTrait
+ConditionSoxB = as.data.frame(datTraits$SoxB);
+names(ConditionSoxB) = "ConditionSoxB"
+# names (colors) of the modules
+modNames = substring(names(MEs), 3)
+
+geneModuleMembership = as.data.frame(cor(datExpr, MEs, use = "p"));
+MMPvalue = as.data.frame(corPvalueStudent(as.matrix(geneModuleMembership), nSamples));
+
+names(geneModuleMembership) = paste("MM", modNames, sep="");
+names(MMPvalue) = paste("p.MM", modNames, sep="");
+
+geneTraitSignificanceSoxB = as.data.frame(cor(datExpr, ConditionSoxB, use = "p"));
+GSPvalueSoxB = as.data.frame(corPvalueStudent(as.matrix(geneTraitSignificanceSoxB), nSamples));
+
+names(geneTraitSignificanceSoxB) = paste("GS.", names(ConditionSoxB), sep="");
+names(GSPvalueSoxB) = paste("p.GS.", names(ConditionSoxB), sep="");
+
+```
+
+```{r}
+#=====================================================================================
+#
+#  Code chunk 4.7 - ConditionFS
+#
+#=====================================================================================
+#Gene relationship to trait and important modules. 
+#This has to be done separately for each trait of interest
+#quantify associations of individual genes with our trait of interest (Condition) by defining Gene Significance
+
+
+# Define variable Condition containing the Condition column of datTrait
+ConditionFS = as.data.frame(datTraits$Condition.F.vs.S);
+names(ConditionFS) = "ConditionFS"
+# names (colors) of the modules
+modNames = substring(names(MEs), 3)
+
+geneModuleMembership = as.data.frame(cor(datExpr, MEs, use = "p"));
+MMPvalue = as.data.frame(corPvalueStudent(as.matrix(geneModuleMembership), nSamples));
+
+names(geneModuleMembership) = paste("MM", modNames, sep="");
+names(MMPvalue) = paste("p.MM", modNames, sep="");
+
+geneTraitSignificanceFS = as.data.frame(cor(datExpr, ConditionFS, use = "p"));
+GSPvalueFS = as.data.frame(corPvalueStudent(as.matrix(geneTraitSignificanceFS), nSamples));
+
+names(geneTraitSignificanceFS) = paste("GS.", names(ConditionFS), sep="");
+names(GSPvalueFS) = paste("p.GS.", names(ConditionFS), sep="");
+```
+
+```{r}
+#=====================================================================================
+#
+#  Code chunk 4.8 - ConditionAQvAll
+#
+#=====================================================================================
+#Gene relationship to trait and important modules. 
+#This has to be done separately for each trait of interest
+#quantify associations of individual genes with our trait of interest (Condition) by defining Gene Significance
+
+
+# Define variable Condition containing the Condition column of datTrait
+ConditionAQvAll = as.data.frame(datTraits$Condition.AQ.vs.all);
+names(ConditionAQvAll) = "ConditionAQvAll"
+# names (colors) of the modules
+modNames = substring(names(MEs), 3)
+
+geneModuleMembership = as.data.frame(cor(datExpr, MEs, use = "p"));
+MMPvalue = as.data.frame(corPvalueStudent(as.matrix(geneModuleMembership), nSamples));
+
+names(geneModuleMembership) = paste("MM", modNames, sep="");
+names(MMPvalue) = paste("p.MM", modNames, sep="");
+
+geneTraitSignificanceAQvAll = as.data.frame(cor(datExpr, ConditionAQvAll, use = "p"));
+GSPvalueAQvAll = as.data.frame(corPvalueStudent(as.matrix(geneTraitSignificanceAQvAll), nSamples));
+
+names(geneTraitSignificanceAQvAll) = paste("GS.", names(ConditionAQvAll), sep="");
+names(GSPvalueAQvAll) = paste("p.GS.", names(ConditionAQvAll), sep="");
+```
+
+Intramodular analysis: identifying genes with high GS and MM
+```{r}
+#=====================================================================================
+#
+#  Code chunk 5
+#
+#=====================================================================================
+#Intramodular analysis: identifying genes with high GS and MM
+
+module = "blue"
+column = match(module, modNames);
+moduleGenes = moduleColors==module;
+
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(geneModuleMembership[moduleGenes, column]),
+                   abs(geneTraitSignificanceSvAll[moduleGenes, 1]),
+                   xlab = paste("Module Membership in", module, "module"),
+                   ylab = "Gene significance for Condition SvAll",
+                   main = paste("Module membership vs. gene significance SvAll\n"),
+                   cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+```
+
+Optional
+```{r}
+#=====================================================================================
+#
+#  Code chunk 6
+#
+#=====================================================================================
+#Summary output of network analysis results
+#Print all geneIDs in the analysis
+
+#names(datExpr)
+```
+
+optional
+```{r}
+#=====================================================================================
+#
+#  Code chunk 7
+#
+#=====================================================================================
+#Print all geneIDs in the the brown module
+
+
+#names(datExpr)[moduleColors=="brown"]
+```
+
+match data to annotation file to connect gene IDs to gene names and other annotations
+```{r}
+#=====================================================================================
+#
+#  Code chunk 8
+#
+#=====================================================================================
+# match data to annotation file to connect gene IDs to gene names and other annotations
+
+annot = read.csv(file = "ref_assembly_corset.b2g.emapper.annot.csv");
+dim(annot)
+names(annot)
+probes = names(datExpr)
+probes2annot = match(probes, annot$GeneID)
+# The following is the number or probes without annotation:
+sum(is.na(probes2annot))
+```
+
+Create a data frame holding the following information for all probes in relation to Condition: 
+```{r}
+#=====================================================================================
+#
+#  Code chunk 9
+#
+#=====================================================================================
+#Create a data frame holding the following information for all probes in relation to Condition: 
+# probe ID, protein ID, gene name, module color, gene significance for weight, and module membership and p-values in all modules. 
+#The modules will be ordered by their significance for weight, with the most significant ones to the left.
+
+#Note: this will have to be done individually for each variable column
+
+# Create the starting data frame
+geneInfo0 = data.frame(GeneID = probes,
+                       CorsetID = annot$CorsetID[probes2annot],
+                       Description = annot$Description[probes2annot],
+                       geneDescr = annot$description[probes2annot],
+                       IPR = annot$InterPro.IDs[probes2annot],
+                       geneName = annot$Preferred_name[probes2annot],
+                       e.value = annot$e.value[probes2annot],
+                       GO.IDs = annot$GO.IDs[probes2annot],
+                       KEGG = annot$KEGG.KO[probes2annot],
+                       KEGG.pathway = annot$KEGG.pathway[probes2annot],
+                       Taxon = annot$best.tax.lvl[probes2annot],
+                       moduleColor = moduleColors,
+                       geneTraitSignificanceFvAll,
+                       GSPvalueFvAll,
+                       geneTraitSignificanceSvAll,
+                       GSPvalueSvAll,
+                       geneTraitSignificanceWvAll,
+                       GSPvalueWvAll,
+                       geneTraitSignificanceFS,
+                       GSPvalueFS,
+                       geneTraitSignificanceFW,
+                       GSPvalueFW,
+                       geneTraitSignificanceSW,
+                       GSPvalueSW,
+                       geneTraitSignificanceAQvAll,
+                       GSPvalueAQvAll)
+
+# Order modules by their significance for ConditionFvAll
+modOrder = order(-abs(cor(MEs, ConditionFvAll, use = "p")));
+# Add module membership information in the chosen order
+for (mod in 1:ncol(geneModuleMembership))
+{
+  oldNames = names(geneInfo0)
+  geneInfo0 = data.frame(geneInfo0, geneModuleMembership[, modOrder[mod]], 
+                         MMPvalue[, modOrder[mod]]);
+  names(geneInfo0) = c(oldNames, paste("MM.", modNames[modOrder[mod]], sep=""),
+                       paste("p.MM.", modNames[modOrder[mod]], sep=""))
+}
+# Order the genes in the geneInfo variable first by module color, then by geneTraitSignificance
+geneOrder = order(geneInfo0$moduleColor, -abs(geneInfo0$GS.ConditionFvAll));
+geneInfo = geneInfo0[geneOrder, ]
+
+```
+
+
+Save data
+```{r}
+#=====================================================================================
+#
+#  Code chunk 10
+#
+#=====================================================================================
+
+pl
+write.csv(geneInfo, file = "WGCNA_4_Host-var20-geneInfo-Condition_13082024.csv")
+```

@@ -1,0 +1,288 @@
+---
+title: "Host DGE BY04"
+author: "BY"
+date: "2024-05-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load packages
+```{r}
+library("tximport")
+library("readr")
+library("DESeq2")
+library("ggplot2")
+library("gplots")
+library("RColorBrewer")
+library("PoiClaClu")
+library("pheatmap")
+library("IHW")
+library("ashr")
+library("tidyverse")
+library(ggrepel)
+```
+
+Specify working directory and load sample data from salmon output
+```{r}
+setwd("~/Lucinid_project/BY04/DGE_DESeq2_val_salmonv0.14")
+
+#upload sample/condition table
+samples <- read.table("samples.txt", header=TRUE) 
+#specify the path to the quantfiles using the appropriate names in "samples"
+files <- file.path(samples$run, "quant.sf")
+#i think this labels the paths with sample names
+names(files) <- samples$run 
+```
+
+import gene to transcript mapping file
+```{r}
+#upload transcript to gene mapping table
+tx2gene <- read.csv("./ref_assembly_corset.gene_trans_map.csv")
+
+# import quantification data for DESeq2 using the tximport function
+txi <- tximport(files, type="salmon", tx2gene=tx2gene, dropInfReps=TRUE) 
+
+```
+
+Construct a DESeqDataSet
+```{r}
+#construct a DESeqDataSet from the txi object and sample information in samples
+ddsTxi <- DESeqDataSetFromTximport(txi,
+                                   colData = samples,
+                                   design = ~ condition)
+
+#remove genes with low expression values
+keep <- rowSums(counts(ddsTxi)) >= 10
+dds <- ddsTxi[keep,]
+#check levels of conditions
+levels(dds$condition)
+```
+
+#####Exploratory visualisation####
+Transform counts
+```{r}
+#These steps transform the counts matrix in different ways
+#use blind=FALSE only if DESeq function has been run. 
+vsd <- vst(dds, blind=TRUE)
+rld <- rlog(dds, blind=TRUE)
+ntd <- normTransform(dds)
+```
+
+Basic PCAs
+```{r}
+#basic PCA
+#plotPCA(vsd, intgroup=c("condition"))
+
+#This one is for the rld transformed counts
+(data <- plotPCA(rld, intgroup = c( "run", "condition"), returnData=TRUE)) # return the data used for plotting
+percentVar <- round(100 * attr(data, "percentVar"))
+qplot(PC1, PC2, color=run, shape=condition, data=data) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance"))
+
+#This one is for the vsd transformed counts
+(PCAdata <- plotPCA(vsd, intgroup = c( "batch", "condition"), returnData=TRUE)) # return the data used for plotting
+percentVar_vsd <- round(100 * attr(PCAdata, "percentVar"))
+qplot(PC1, PC2, color=run, shape=condition, data=PCAdata) +
+  xlab(paste0("PC1: ",percentVar_vsd[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar_vsd[2],"% variance"))
+#https://support.bioconductor.org/p/90791/
+
+
+### Alternative PCA for vsd counts
+pcaData_vsd <- plotPCA(vsd, intgroup=c("batch", "condition"), returnData=TRUE)
+percentVar <- round(100 * attr(pcaData_vsd, "percentVar"))
+
+# Create PCA plot
+PCA_plot_vsd <- ggplot(pcaData_vsd, aes(PC1, PC2, color=condition, label=rownames(pcaData_vsd))) +
+  geom_point(size=2) +
+  geom_text_repel(size=2, hjust=0, vjust=0.5) +
+  xlab(paste0("PC1: ", percentVar[1], "% variance")) +
+  ylab(paste0("PC2: ", percentVar[2], "% variance")) + 
+  coord_fixed()
+
+# Print the plot
+PCA_plot_vsd
+```
+
+
+
+Measuring euclidean distance between samples
+```{r}
+#calculate sample distances
+sampleDists <- dist( t( assay(rld) ) )
+sampleDists
+
+#Plot sample euclidean distances heatmap
+sampleDistMatrix <- as.matrix( sampleDists )
+rownames(sampleDistMatrix) <- paste( rld$run, rld$condition, sep="-" )
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)#Either colors or colors 2 would do
+colors2 <- colorRampPalette( rev(brewer.pal(9, "RdBu")) )(255)
+hc <- hclust(sampleDists) # provides hierarchical clustering to hc 
+heatmap.2( sampleDistMatrix, Rowv=as.dendrogram(hc),
+           symm=TRUE, trace="none", col=colors,
+           margins=c(2,10), labCol=FALSE )
+```
+
+NDMS
+```{r}
+#MDS plot
+mds <- as.data.frame(colData(vsd))  %>%
+  cbind(cmdscale(sampleDistMatrix))
+ggplot(mds, aes(x = `1`, y = `2`, color = condition, shape = condition)) +
+  geom_point(size = 3) + coord_fixed()
+```
+
+Calculate and plot Poisson Distance of samples
+```{r}
+#Calculate Poisson Distance of samples
+#requires PoiClaClu
+poisd <- PoissonDistance(t(counts(dds)))
+
+#Plot sample poisson distance heatmap
+samplePoisDistMatrix <- as.matrix( poisd$dd )
+rownames(samplePoisDistMatrix) <- paste( dds$run, dds$condition, sep="-" )
+colors <- colorRampPalette( rev(brewer.pal(9, "RdBu")) )(255)
+hcpoisson <- hclust(poisd$dd) # provides hierarchical clustering to hcpoisson
+heatmap.2( samplePoisDistMatrix, Rowv=as.dendrogram(hcpoisson),
+           symm=TRUE, trace="none", col=colors,
+           margins=c(2,10), labCol=FALSE )
+```
+
+
+
+####Differential expression analyses start here####
+Run DESeq
+```{r}
+levels(dds$condition) #check order of levels
+
+#the estimation of size factors (which control for differences in the library size of the sequencing experiments), 
+#the estimation of dispersion for each gene, and fitting a generalized linear model.
+dds <- DESeq(dds) #only one condition so this is not a multifactorial design
+
+
+```
+
+Pairwise comparisons
+#test Independent hypothesis weighting for p-value adjustment. It is important to put threshold in because it otherwise tests for genes that are not zero
+#requires library("IHW") for independent hypothesis testing and library("ashr") for shrinkage
+#contrast = c('factorName','numeratorLevel','denominatorLevel')
+#lfcthreshold of 1 = minumum fold change of 2, threshold of 0.58 means minimum fold change of 1.5
+```{r}
+##Fresh vs Sulphidic
+#set the lfcthreshold to 0.58 (1.5 fold change) and false discovery rate threshold to 0.05 (5% false positives)
+resFS_IHW_fc1.5 <- results(dds, alpha = 0.05, lfcThreshold = 0.58, altHypothesis="greaterAbs", filterFun=ihw, contrast=c("condition","Fresh","Sulphidic"))
+resFS_IHW_fc1.5_shrunk <- lfcShrink(dds, type = c("ashr"), contrast=c("condition","Fresh","Sulphidic"), res=resFS_IHW_fc1.5)
+
+resFS_IHW_fc1.5_shrunkSig <- subset(resFS_IHW_fc1.5_shrunk, padj < 0.05)
+resFS_IHW_fc1.5_shrunkSig_ordered <- resFS_IHW_fc1.5_shrunkSig[order(resFS_IHW_fc1.5_shrunkSig$log2FoldChange, decreasing=TRUE),] # Sort it by the log2 fold change estimate to get the significant genes with the strongest upregulation
+resFS_IHW_fc1.5_shrunkSig_ordered_up <- subset(resFS_IHW_fc1.5_shrunkSig_ordered, log2FoldChange > 0)
+resFS_IHW_fc1.5_shrunkSig_ordered_down <- subset(resFS_IHW_fc1.5_shrunkSig_ordered, log2FoldChange < 0)
+write.table(resFS_IHW_fc1.5_shrunkSig_ordered, file="resFS_IHW_fc1.5_shrunkSig_ordered.tsv", sep = "\t")
+write.table(resFS_IHW_fc1.5_shrunkSig_ordered_up, file="resFS_IHW_fc1.5_shrunkSig_ordered_up.tsv", sep = "\t")
+write.table(resFS_IHW_fc1.5_shrunkSig_ordered_down, file="resFS_IHW_fc1.5_shrunkSig_ordered_down.tsv", sep = "\t")
+
+```
+
+```{r}
+##Fresh vs Washed
+
+
+#lower the lfcthreshold 0.58 (1.5 fold change) and lower the false discovery rate threshold to 0.05 (5% false positives)
+resFW_IHW_fc1.5 <- results(dds, alpha = 0.05, lfcThreshold = 0.58, altHypothesis="greaterAbs", filterFun=ihw, contrast=c("condition","Fresh","Washed"))
+resFW_IHW_fc1.5_shrunk <- lfcShrink(dds, type = c("ashr"), contrast=c("condition","Fresh","Washed"), res=resFW_IHW_fc1.5)
+resFW_IHW_fc1.5_shrunkSig <- subset(resFW_IHW_fc1.5_shrunk, padj < 0.05)
+resFW_IHW_fc1.5_shrunkSig_ordered <- resFW_IHW_fc1.5_shrunkSig[order(resFW_IHW_fc1.5_shrunkSig$log2FoldChange, decreasing=TRUE),] # Sort it by the log2 fold change estimate to get the significant genes with the strongest upregulation
+resFW_IHW_fc1.5_shrunkSig_ordered_up <- subset(resFW_IHW_fc1.5_shrunkSig_ordered, log2FoldChange > 0)
+resFW_IHW_fc1.5_shrunkSig_ordered_down <- subset(resFW_IHW_fc1.5_shrunkSig_ordered, log2FoldChange < 0)
+write.table(resFW_IHW_fc1.5_shrunkSig_ordered, file="resFW_IHW_fc1.5_shrunkSig_ordered.tsv", sep = "\t")
+write.table(resFW_IHW_fc1.5_shrunkSig_ordered_up, file="resFW_IHW_fc1.5_shrunkSig_ordered_up.tsv", sep = "\t")
+write.table(resFW_IHW_fc1.5_shrunkSig_ordered_down, file="resFW_IHW_fc1.5_shrunkSig_ordered_down.tsv", sep = "\t")
+```
+
+```{r}
+##Sulphidic vs Washed
+
+#lower lfcthreshold and alpha
+resSW_IHW_fc1.5 <- results(dds, alpha = 0.05, lfcThreshold = 0.58, altHypothesis="greaterAbs", filterFun=ihw, contrast=c("condition","Sulphidic","Washed"))
+
+resSW_IHW_fc1.5_shrunk <- lfcShrink(dds, type = c("ashr"), contrast=c("condition","Sulphidic","Washed"), res=resFW_IHW_fc1.5)
+resSW_IHW_fc1.5_shrunkSig <- subset(resSW_IHW_fc1.5_shrunk, padj < 0.05)
+resSW_IHW_fc1.5_shrunkSig_ordered <- resSW_IHW_fc1.5_shrunkSig[order(resSW_IHW_fc1.5_shrunkSig$log2FoldChange, decreasing=TRUE),] # Sort it by the log2 fold change estimate to get the significant genes with the strongest upregulation
+resSW_IHW_fc1.5_shrunkSig_ordered_up <- subset(resSW_IHW_fc1.5_shrunkSig_ordered, log2FoldChange > 0)
+resSW_IHW_fc1.5_shrunkSig_ordered_down <- subset(resSW_IHW_fc1.5_shrunkSig_ordered, log2FoldChange < 0)
+write.table(resSW_IHW_fc1.5_shrunkSig_ordered, file="resSW_IHW_fc1.5_shrunkSig_ordered.tsv", sep = "\t")
+write.table(resSW_IHW_fc1.5_shrunkSig_ordered_up, file="resSW_IHW_fc1.5_shrunkSig_ordered_up.tsv", sep = "\t")
+write.table(resSW_IHW_fc1.5_shrunkSig_ordered_down, file="resSW_IHW_fc1.5_shrunkSig_ordered_down.tsv", sep = "\t")
+
+```
+
+```{r}
+#Write and export a table of vst counts
+vsd_deseq <- vst(dds, blind=FALSE)
+write.table(assay(vsd_deseq), file="vstBY04.txt", sep="\t")
+
+#Write and export a table of un-normalised untransformed counts
+raw <- counts(dds, normalized = FALSE)
+write.csv(raw, file="raw_counts.csv")
+```
+
+```{r}
+#explore PCAs
+library(PCAtools)
+#convert vsd to matrix that can be used
+vst <- assay(vst(dds))
+#run PCA
+p <- pca(vst, metadata = colData(dds), removeVar = 0.1)
+#create a scree plot
+screeplot(p, axisLabSize = 18, titleLabSize = 22, hline = 80,    returnPlot = FALSE) +
+    geom_label(aes(6, 80, label = '80% explained variation', vjust = -1, size = 8))
+
+
+#make a biplot:representation of samples in a 2-dimensional space, usually focusing on just the first two PCs:
+biplot(p,
+       # loadings parameters
+       showLoadings = TRUE,
+       lengthLoadingsArrowsFactor = 1.5,
+       sizeLoadingsNames = 4,
+       colLoadingsNames = 'red4',
+       # other parameters
+       lab = NULL,
+       colby = 'condition', 
+       hline = 0, vline = c(-25, 0, 25),
+       vlineType = c('dotdash', 'solid', 'dashed'),
+       gridlines.major = FALSE, gridlines.minor = FALSE,
+       pointSize = 5,
+       legendPosition = 'left', legendLabSize = 14, legendIconSize = 8.0,
+       drawConnectors = FALSE,
+       title = 'PCA bi-plot',
+       subtitle = 'PC1 versus PC2',
+       caption = '11 PCs ≈ 80%')
+
+
+#make a pairs plot
+ pairsplot(p, colby = 'condition') 
+ pairsplot(p,
+    components = getComponents(p, c(1:3)),
+    triangle = TRUE, trianglelabSize = 12,
+    hline = 0, vline = 0,
+    pointSize = 0.4,
+    gridlines.major = FALSE, gridlines.minor = FALSE,
+    colby = 'condition',
+    title = 'Pairs plot', plotaxes = FALSE,
+    margingaps = unit(c(-0.01, -0.01, -0.01, -0.01), 'cm'))
+ 
+ #plot the loadings, should match the top hits
+   plotloadings(p,
+    rangeRetain = 0.01,
+    labSize = 4.0,
+    title = 'Loadings plot',
+    subtitle = 'PC1, PC2, PC3, PC4, PC5',
+    caption = 'Top 1% variables',
+    shape = 24,
+    col = c('limegreen', 'black', 'red3'),
+    drawConnectors = TRUE)
+```

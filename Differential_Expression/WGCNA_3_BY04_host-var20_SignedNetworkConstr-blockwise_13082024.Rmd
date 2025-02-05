@@ -1,0 +1,175 @@
+---
+title: "BY04_host-var20_SignedNetworkConstr-blockwise_13082024"
+author: "BY"
+date: "2024-08-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Setup workspace and load data from previous step (WGCNA_2)
+```{r}
+#=====================================================================================
+#
+#  Code chunk 1
+#
+#=====================================================================================
+# Display the current working directory
+getwd();
+# If necessary, change the path below to the directory where the data files are stored. 
+# "." means current directory. On Windows use a forward slash / instead of the usual \.
+workingDir = ".";
+setwd(workingDir); 
+# Load the WGCNA package
+library(WGCNA)
+# The following setting is important, do not omit.
+options(stringsAsFactors = FALSE);
+# Allow multi-threading within WGCNA. At present this call is necessary.
+# Any error here may be ignored but you may want to update WGCNA if you see one.
+# Caution: skip this line if you run RStudio or other third-party R environments.
+# See note above.
+#enableWGCNAThreads()
+# Load the data saved in the first part
+lnames = load(file = "WGCNA_2_BY04-host-var20-dataInput_13082024.RData");
+```
+
+
+Plot of soft-thresholding powers
+```{r}
+#=====================================================================================
+#
+#  Code chunk 2
+#
+#=====================================================================================
+#Plot of soft-thresholding powers
+
+# Choose a set of soft-thresholding powers
+powers = c(c(1:10), seq(from = 12, to=30, by=2))
+# Call the network topology analysis function
+sft = pickSoftThreshold(datExpr, networkType = "signed", corFnc = bicor, powerVector = powers, verbose = 5, corOptions = list(use = 'p', maxPOutliers = 0.1))
+# Plot the results:
+sizeGrWindow(9, 5)
+par(mfrow = c(1,2));
+cex1 = 0.9;
+# Scale-free topology fit index as a function of the soft-thresholding power
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     xlab="Soft Threshold (power)",ylab="Scale Free Topology Model Fit,signed R^2",type="n",
+     main = paste("Scale independence"));
+text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     labels=powers,cex=cex1,col="red");
+# this line corresponds to using an R^2 cut-off of h
+abline(h=0.90,col="red")
+# Mean connectivity as a function of the soft-thresholding power
+plot(sft$fitIndices[,1], sft$fitIndices[,5],
+     xlab="Soft Threshold (power)",ylab="Mean Connectivity", type="n",
+     main = paste("Mean connectivity"))
+text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1,col="red")
+
+pdf(file = "WGCNA_3_BY04_host-var20_SignedNetworkConstr-blockwise_13082024_thresholdingplots.pdf", width = 10, height = 8)
+
+par(mfrow = c(1,2));
+cex1 = 0.9;
+# Scale-free topology fit index as a function of the soft-thresholding power
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     xlab="Soft Threshold (power)",ylab="Scale Free Topology Model Fit,signed R^2",type="n",
+     main = paste("Scale independence"));
+text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     labels=powers,cex=cex1,col="red");
+# this line corresponds to using an R^2 cut-off of h
+abline(h=0.90,col="red")
+# Mean connectivity as a function of the soft-thresholding power
+plot(sft$fitIndices[,1], sft$fitIndices[,5],
+     xlab="Soft Threshold (power)",ylab="Mean Connectivity", type="n",
+     main = paste("Mean connectivity"))
+text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1,col="red")
+dev.off()
+```
+
+
+Block-wise network construction and module detection (Calculates Co-expression similarity and adjacency)
+```{r}
+#=====================================================================================
+#
+#  Code chunk 3
+#
+#=====================================================================================
+# Block-wise network construction and module detection (Calculates Co-expression similarity and adjacency)
+
+#choose the lowest power for which the scale-free topology fit index reaches 0.90.
+#We now calculate the adjacencies, using the first soft thresholding power that reaches 0.90:
+#Two-level clustering. 
+#First, use a crude clustering method to pre-cluster genes into blocks of size close to and not exceeding X number of genes (the parameter “maxBlockSize”. 
+#Second perform a full network analysis in each block separately. 
+#Finally, modules whose eigengenes are highly correlated are merged.
+#Trade-off: blocks may not be optimal, causing some outlying genes to be assigned to a different module than they would be in a full network analysis.
+#A 16GB workstation should handle up to 20000 genes
+
+#This command includes the construction of the Topological Overlap Matrix (TOM)
+# minimize effects of noise and spurious associations, transform the adjacency into Topological Overlap Matrix, and calculate the corresponding dissimilarity:
+# Turn adjacency into topological overlap
+
+bwnet = blockwiseModules(datExpr, maxBlockSize = 24000, networkType = "signed",
+                         power = 24, TOMType = "signed", minModuleSize = 100,
+                         corType = "bicor", maxPOutliers = 0.1,
+                         reassignThreshold = 0, mergeCutHeight = 0.25,
+                         numericLabels = TRUE,
+                         saveTOMs = TRUE,
+                         saveTOMFileBase = "BY04-host-SignedBicorBlockwise",
+                         verbose = 3)
+#notes on output: bwnet$colors contains the module assignment, and bwnet$MEs contains the module eigengenes
+```
+
+
+Block visualisation
+```{r}
+#=====================================================================================
+#
+#  Code chunk 4
+#
+#=====================================================================================
+#Block visualisation
+
+# open a graphics window
+sizeGrWindow(12, 9)
+# Convert labels to colors for plotting
+bwnetColors = labels2colors(bwnet$colors)
+# Plot the dendrogram and the module colors underneath
+plotDendroAndColors(bwnet$dendrograms[[1]], bwnetColors[bwnet$blockGenes[[1]]],
+                    "Module colors",
+                    dendroLabels = FALSE, hang = 0.03,
+                    addGuide = TRUE, guideHang = 0.05)
+
+pdf(file = "WGCNA_3_BY04_host-var20_SignedNetworkConstr-blockwise_13082024_clusterdendrogram.pdf", width = 10, height = 8)
+plotDendroAndColors(bwnet$dendrograms[[1]], bwnetColors[bwnet$blockGenes[[1]]],
+                    "Module colors",
+                    dendroLabels = FALSE, hang = 0.03,
+                    addGuide = TRUE, guideHang = 0.05)
+dev.off()
+```
+
+
+save the module assignment and module eigengene information necessary for subsequent analysis
+```{r}
+#=====================================================================================
+#
+#  Code chunk 5
+#
+#=====================================================================================
+# save the module assignment and module eigengene information necessary for subsequent analysis.
+
+
+
+moduleLabels = bwnet$colors
+table(moduleLabels) #To see how many modules were identified and the module sizes 
+moduleColors = labels2colors(bwnet$colors)
+table(moduleColors)
+MEs = bwnet$MEs;
+
+blockwiseMEs = moduleEigengenes(datExpr, moduleColors)$eigengenes;
+
+save(MEs, moduleLabels, moduleColors, blockwiseMEs, 
+     file = "WGCNA_3_BY04_host-var20_SignedNetworkConstr_summary_13082024.RData")
+```
+

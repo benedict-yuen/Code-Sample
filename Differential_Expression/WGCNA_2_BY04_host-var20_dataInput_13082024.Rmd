@@ -1,0 +1,205 @@
+---
+title: "WGCNA_2_data_input"
+author: "BY"
+date: "2024-08-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Setup working directory and upload vst transformed counts
+```{r}
+#=====================================================================================
+#
+#  Code chunk 1
+#
+#=====================================================================================
+
+#set working directory
+setwd("~/Lucinid_project/BY04/WGCNA")
+# Load the WGCNA package
+library(WGCNA);
+# The following setting is important, do not omit.
+options(stringsAsFactors = FALSE);
+#Read in the filtered host data set
+HostData = read.csv("vstBY04_host_var20.csv");
+# Take a quick look at what is in the data set:
+dim(HostData); 
+names(HostData);
+#One can inspect larger data frames by invoking R data editor via fix(HostData)
+```
+Transpose the data
+```{r}
+#=====================================================================================
+#
+#  Code chunk 2
+#
+#=====================================================================================
+
+#Remove auxiliary data and transpose expression data for further analysis.
+datExpr0 = as.data.frame(t(HostData[, -c(1)]));
+names(datExpr0) = HostData$gene_id;
+rownames(datExpr0) = names(HostData)[-c(1)];
+```
+
+Check genes for samples with too many missing values
+```{r}
+#=====================================================================================
+#
+#  Code chunk 3
+#
+#=====================================================================================
+
+#check for genes and samples with too many missing values
+gsg = goodSamplesGenes(datExpr0, verbose = 3); 
+#If this command returns TRUE, then all genes make the cut
+gsg$allOK
+```
+
+Remove samples and genes with too many missing values if necessary
+```{r}
+#=====================================================================================
+#
+#  Code chunk 4
+#
+#=====================================================================================
+
+#remove the offending genes and samples from the data:
+
+if (!gsg$allOK)
+{
+  # Optionally, print the gene and sample names that were removed:
+  if (sum(!gsg$goodGenes)>0) 
+    printFlush(paste("Removing genes:", paste(names(datExpr0)[!gsg$goodGenes], collapse = ", ")));
+  if (sum(!gsg$goodSamples)>0) 
+    printFlush(paste("Removing samples:", paste(rownames(datExpr0)[!gsg$goodSamples], collapse = ", ")));
+  # Remove the offending genes and samples from the data:
+  datExpr0 = datExpr0[gsg$goodSamples, gsg$goodGenes]
+}
+```
+
+cluster samples to identify obvious outliers
+```{r}
+#=====================================================================================
+#
+#  Code chunk 5
+#
+#=====================================================================================
+#cluster samples to identify obvious outliers.
+
+sampleTree = hclust(dist(datExpr0), method = "average");
+# Plot the sample tree: Open a graphic output window of size 12 by 9 inches
+# The user should change the dimensions if the window is too large or too small.
+sizeGrWindow(12,9)
+par(cex = 0.6);
+par(mar = c(0,4,2,0))
+plot(sampleTree, main = "Sample clustering to detect outliers", sub="", xlab="", cex.lab = 1.5, 
+     cex.axis = 1.5, cex.main = 2)
+
+pdf(file = "WGCNA_2_BY04_host-var20_dataInput_13082024_sampleclustering.pdf", width = 10, height = 8)
+
+plot(sampleTree, main = "Sample clustering to detect outliers", sub="", xlab="", cex.lab = 1.5, 
+     cex.axis = 1.5, cex.main = 2)
+dev.off()
+
+```
+Optional step for removing outliers
+```{r}
+#=====================================================================================
+#
+#  Code chunk 6
+#
+#=====================================================================================
+
+#If outliers exist, one can remove it by hand, or use an automatic approach. 
+#Choose a height cut that will remove the offending sample, say 15 (the red line in the plot), and use a branch cut at that height.
+
+# Plot a line to show the cut
+#abline(h = 15, col = "red");
+# Determine cluster under the line
+#clust = cutreeStatic(sampleTree, cutHeight = 15, minSize = 10)
+#table(clust)
+# clust 1 contains the samples we want to keep.
+#keepSamples = (clust==1)
+
+#### There were no outliers so all samples are kept ####
+datExpr = datExpr0
+nGenes = ncol(datExpr)
+nSamples = nrow(datExpr)
+
+#The variable datExpr now contains the expression data ready for network analysis.
+```
+
+Upload traits data
+```{r}
+#=====================================================================================
+#
+#  Code chunk 7
+#
+#=====================================================================================
+#Read in the trait data and match the trait samples to the expression samples
+
+traitData = read.csv("Traits.csv");
+dim(traitData)
+names(traitData)
+
+# remove columns that hold information we do not need.
+allTraits = traitData[, c(1, 3:11) ];
+#allTraits = allTraits[, c(2, 11:36) ];
+dim(allTraits)
+names(allTraits)
+
+# Form a data frame analogous to expression data that will hold the experimental traits.
+
+Samples = rownames(datExpr);
+traitRows = match(Samples, allTraits$Sample_ID);
+datTraits = allTraits[traitRows, -1];
+rownames(datTraits) = allTraits[traitRows, 1];
+
+collectGarbage();
+
+#We now have the expression data in the variable datExpr, and the corresponding clinical traits in the variable datTraits. 
+```
+We now have the expression data in the variable datExpr, and the corresponding clinical traits in the variable datTraits. 
+
+Visualize how the experimental traits relate to the sample dendrogram
+```{r}
+#=====================================================================================
+#
+#  Code chunk 8
+#
+#=====================================================================================
+
+
+#visualize how the experimental traits relate to the sample dendrogram.
+# Re-cluster samples
+sampleTree2 = hclust(dist(datExpr), method = "average")
+# Convert traits to a color representation: white means low, red means high, grey means missing entry
+traitColors = numbers2colors(datTraits, signed = FALSE);
+# Plot the sample dendrogram and the colors underneath.
+par(mar = c(6, 8, 4, 4));
+plotDendroAndColors(sampleTree2, traitColors,
+                    groupLabels = names(datTraits), 
+                    main = "Sample dendrogram and trait heatmap")
+
+pdf(file = "WGCNA_2_BY04_host-var20_dataInput_13082024_sampledendrogramvstraits.pdf", width = 10, height = 8)
+par(mar = c(6, 8, 4, 4));
+plotDendroAndColors(sampleTree2, traitColors,
+                    groupLabels = names(datTraits), 
+                    main = "Sample dendrogram and trait heatmap")
+dev.off()
+```
+Save data for next step (WGCNA_3)
+```{r}
+#=====================================================================================
+#
+#  Code chunk 9
+#
+#=====================================================================================
+
+
+save(datExpr, datTraits, file = "WGCNA_2_BY04-host-var20-dataInput_13082024.RData")
+
+```
