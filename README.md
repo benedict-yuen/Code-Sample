@@ -15,6 +15,7 @@ Each workflow has its own README with detailed instructions. Click on the links 
 While the code provided here is functional and addresses the specific needs of the analysis, I acknowledge that it may not be fully optimized for general use or scalability. This reflects my focus on solving the immediate problem at hand with available resources.
 
 I am keen on learning and improving my coding practices. Going forward, I would:
+- Enhance data organisation efficiency with scripts for setting up all project directories
 - Improve modularity and replicability through better workflow management using snakemake, particularly for the metagenomic and metatranscriptomic analysis
 - Enhance error handling to make the code more robust
 - Optimise performance for larger datasets by incorporating more efficient parallelization and the use of array scripts
