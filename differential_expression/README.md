@@ -2,7 +2,7 @@
 
 ## Overview
 
-This directory contains R scripts for analysing gene expression patterns using differential expression (DE) analysis and Weighted Gene Co-Expression Analysis (WGCNA). These scripts were developed to investigate the transcriptomic responses of a chemosymbiotic bivalve to prolonged sulhide-deprivation. 
+This directory contains R scripts for analysing gene expression patterns using differential expression (DE) analysis and Weighted Gene Co-Expression Analysis (WGCNA). These scripts were developed to investigate the transcriptomic responses of a chemosymbiotic bivalve to extended sulphide-deprivation. 
 The experiment comprised three conditions: wild caught (Fresh) clams, clams in aquaria for 10 weeks without a sulphide supply (Washed), clams in aquaria for 10 weeks with a sulphide supply (Sulphidic). 
 
 ## Files Included
@@ -61,8 +61,18 @@ To run the analysis, open R and execute:
 - genefilter
 - WGCNA
 
-## Notes and Limitations
-These scripts identify the important genes that were differentially expressed in response to the experimental conditions. Further (GO term/KEGG) enrichment analyses and visualisation steps (e.g. heatmaps, bubble plots)  are necessary to summarise the data for reporting.
+## Notes and Potential Improvements
+These scripts identify the important genes that were differentially expressed in response to the experimental conditions. 
+
+Further (GO term/KEGG) enrichment analyses and visualisation steps (e.g. heatmaps, bubble plots)  are necessary to summarise the data for reporting.
+
+These are areas where I would improve the code in future iterations:
+
+- Add more robust input validation steps to catch mismatches in data and metadata
+- Implement more summary logging steps at each stage of the analysis to track progress and potential issues
+- Use parallel computing to speed up the network construction for larger datasets
+- Create more automation to summarise and visualise the output data 
+- Adapt code to be run on an HPC
 
 ## Contact
 For any questions, reach out to benedict.yuen@uqconnect.edu.au.

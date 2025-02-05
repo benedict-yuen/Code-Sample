@@ -38,8 +38,15 @@ The code was written in BASH to assemble and annotate the lucinid michondrial ge
 
 `sbatch 02_mitogenomics_novoplasty.sh CombinedReadsFile.gz Seed.fasta`
 
-## Notes & Limitations
-These scripts were designed for lucinid gill metagenome Illumina reads and for use on the GWDG HPC, and will need modifications for other data and HPCs
+## Notes & Potential Improvements
+These scripts were designed for lucinid gill metagenome Illumina reads and for use on the GWDG HPC, and will need modifications for other data and HPCs. The current mitogenomics workflow functions as intended, however, it was designed to be run on a small number of individual libraries.
+
+Bivalve mitochondrial genomes can be large, complex and require iterative analysis to produce the optimum results. I would undertake these steps to scale the analysis:
+- Use snakemake to automate the workflow, running MitoZ for different samples using different assemblers and kmer sizes
+- Leverage parallelization to run these samples simultaneously
+- Use a configuration file to define the assemblers and kmer combos
+- Aggregate and summarise the assembly results to report the best assembly for each sample
+
 
 ## Author & Contact
 Written by Benedict Yuen as part of the Eco-Evolutionary Interactions group at the Max Planck Institute for Marine Microbiology. Reach me at byuen@mpi-bremen.de.

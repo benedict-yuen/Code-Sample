@@ -58,7 +58,7 @@ The goal of this project was to study the evolution of nitrogen fixation in a gl
 - Requires input alignment from `03_recombination_seed_tree_build.sh`: "core_mauve_aln_cat_maffted_trim.fa"
 
 
-## Notes & Limitations
+## Notes
 
 ### Important Note on Calculating R/m and CI values 
 r/m = 1/1/delta * R/theta * nu
@@ -68,9 +68,16 @@ Calculate confidence intervals (https://github.com/xavierdidelot/ClonalFrameML/i
 Yes if two 95%CI do not overlap then it suggests that there is a significant difference at the p=0.05 level.
 When using embranch option things are a bit different since there will be parameter estimated for each branches."
 
-### Limitations
+### Potential Improvements
 This project only targeted three species of bacteria so this workflow  was designed to be run on a single target species one at a time and lacks scalability.
 
+Although the current version of this analysis pipeline does not yet incorporate full workflow automation, this is the approach I would implement moving forward to streamline the process and ensure smooth execution. The proposed workflow automation would involve sequential steps, where each step is executed only if the previous one has been successfully completed. This approach would help mitigate errors and improve the reproducibility of the analysis.
+
+Intended workflow features:
+- Step-wise execution: each step would be an independent module, where execution of a given step is dependent on successful completion of the prior step
+- Completion checks/Output verification: I would add code checking that the necessary output is present and validated
+- Error handling: I would include error handling for each module
+ 
 
 ## Author & Contact
 
